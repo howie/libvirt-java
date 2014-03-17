@@ -18,7 +18,9 @@ import org.libvirt.jna.StreamPointer;
 import org.libvirt.jna.virConnectAuth;
 import org.libvirt.jna.virNodeInfo;
 
+import com.sun.jna.CallbackThreadInitializer;
 import com.sun.jna.Memory;
+import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.LongByReference;
@@ -399,7 +401,7 @@ public class Connect {
 	 */
 	public static long connectionVersion(Connect conn) {
 		LongByReference libVer = new LongByReference();
-		int result = Libvirt.INSTANCE.virConnectGetLibVersion(conn.VCP, libVer);
+		int result = Libvirt.SYNC_INSTANCE.virConnectGetLibVersion(conn.VCP, libVer);
 		return result != -1 ? libVer.getValue() : -1;
 	}
 
@@ -434,8 +436,8 @@ public class Connect {
 	 *            a Class to perform the callback
 	 */
 	public static void setErrorCallback(Libvirt.VirErrorCallback callback) throws LibvirtException {
-		Libvirt.INSTANCE.virSetErrorFunc(null, callback);
-		ErrorHandler.processError(Libvirt.INSTANCE);
+		Libvirt.SYNC_INSTANCE.virSetErrorFunc(null, callback);
+		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
 	}
 
 	/**
@@ -475,7 +477,7 @@ public class Connect {
 		VCP = libvirt.virConnectOpen(uri);
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.INSTANCE);
+		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
 	}
 
 	/**
@@ -498,7 +500,7 @@ public class Connect {
 		}
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.INSTANCE);
+		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
 	}
 
 	/**
@@ -533,7 +535,7 @@ public class Connect {
 		VCP = libvirt.virConnectOpenAuth(uri, vAuth, flags);
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.INSTANCE);
+		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
 	}
 
 	/**
@@ -704,12 +706,15 @@ public class Connect {
 	 */
 	public void processEvent() throws LibvirtException {
 		if(libvirt.virEventRunDefaultImpl() == -1)
-			ErrorHandler.processError(Libvirt.INSTANCE);
+			ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
 	}
 
+	public static CallbackThreadInitializer callbackThreadInitializer = new     CallbackThreadInitializer(true);
+
+	
 	int domainEventRegister(Domain domain, int eventID, Libvirt.VirDomainEventCallback cb) throws LibvirtException {
 		DomainPointer ptr = domain == null ? null : domain.VDP;
-
+		Native.setCallbackThreadInitializer(cb, callbackThreadInitializer);
 		return processError(libvirt.virConnectDomainEventRegisterAny(VCP, ptr, eventID, cb, null, null));
 	}
 
@@ -747,6 +752,7 @@ public class Connect {
 	 *             on failure
 	 */
 	public int domainEventRegister(final DomainEvent.IOErrorCallback cb) throws LibvirtException {
+		
 		return domainEventRegister(null, cb);
 	}
 

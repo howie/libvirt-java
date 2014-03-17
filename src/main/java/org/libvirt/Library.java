@@ -24,10 +24,10 @@ final class Library {
 
     // Load the native part
     static {
-        Libvirt.INSTANCE.virInitialize();
-        libvirt = Libvirt.INSTANCE;
+        Libvirt.SYNC_INSTANCE.virInitialize();
+        libvirt = Libvirt.SYNC_INSTANCE;
         try {
-            ErrorHandler.processError(Libvirt.INSTANCE);
+            ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
         } catch (Exception e) {
             e.printStackTrace();
         }

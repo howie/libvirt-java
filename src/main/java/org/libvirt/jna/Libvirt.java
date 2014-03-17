@@ -139,6 +139,11 @@ public interface Libvirt extends Library {
 
 	Libvirt INSTANCE = (Libvirt) Native.loadLibrary("virt", Libvirt.class);
 
+	/**
+     * Synchronised native library instance.
+     */
+	Libvirt SYNC_INSTANCE = (Libvirt)Native.synchronizedLibrary(INSTANCE);
+	
 	// Constants we need
 	public static int VIR_UUID_BUFLEN = 16;
 
