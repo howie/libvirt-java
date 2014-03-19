@@ -2,6 +2,8 @@ package org.libvirt;
 
 import static org.libvirt.Library.libvirt;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.libvirt.jna.ConnectionPointer;
@@ -9,6 +11,7 @@ import org.libvirt.jna.DevicePointer;
 import org.libvirt.jna.DomainPointer;
 import org.libvirt.jna.InterfacePointer;
 import org.libvirt.jna.Libvirt;
+import org.libvirt.jna.Libvirt.VirDomainEventCallback;
 import org.libvirt.jna.NetworkFilterPointer;
 import org.libvirt.jna.NetworkPointer;
 import org.libvirt.jna.SecretPointer;
@@ -18,9 +21,7 @@ import org.libvirt.jna.StreamPointer;
 import org.libvirt.jna.virConnectAuth;
 import org.libvirt.jna.virNodeInfo;
 
-import com.sun.jna.CallbackThreadInitializer;
 import com.sun.jna.Memory;
-import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.LongByReference;
@@ -28,10 +29,12 @@ import com.sun.jna.ptr.LongByReference;
 /**
  * The Connect object represents a connection to a local or remote
  * hypervisor/driver.
- * 
+ *
  * @author stoty
  */
 public class Connect {
+
+	protected Map<Integer, VirDomainEventCallback>	virDomainEventCallbackList	= null;
 
 	/**
 	 * Event IDs.
@@ -106,10 +109,10 @@ public class Connect {
 
 			/**
 			 * Look up a constant of this enum by its ordinal number.
-			 * 
+			 *
 			 * @return the corresponding enum constant when such a constant exists,
 			 *         otherwise {@link #UNKNOWN}
-			 * 
+			 *
 			 * @throws IllegalArgumentException
 			 *             if {@code ordinal} is negative
 			 */
@@ -129,7 +132,7 @@ public class Connect {
 
 			/**
 			 * This method gets called upon a domain I/O error event.
-			 * 
+			 *
 			 * @param connect
 			 *            the connection on which the event occurred
 			 * @param domain
@@ -392,7 +395,7 @@ public class Connect {
 
 	/**
 	 * Get the version of a connection.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectGetLibVersion">Libvirt Documentation</a>
 	 * @param conn
 	 *            the connection to use.
@@ -401,7 +404,7 @@ public class Connect {
 	 */
 	public static long connectionVersion(Connect conn) {
 		LongByReference libVer = new LongByReference();
-		int result = Libvirt.SYNC_INSTANCE.virConnectGetLibVersion(conn.VCP, libVer);
+		int result = Libvirt.INSTANCE.virConnectGetLibVersion(conn.VCP, libVer);
 		return result != -1 ? libVer.getValue() : -1;
 	}
 
@@ -431,13 +434,13 @@ public class Connect {
 
 	/**
 	 * Sets the error function to a user defined callback
-	 * 
+	 *
 	 * @param callback
 	 *            a Class to perform the callback
 	 */
 	public static void setErrorCallback(Libvirt.VirErrorCallback callback) throws LibvirtException {
-		Libvirt.SYNC_INSTANCE.virSetErrorFunc(null, callback);
-		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
+		Libvirt.INSTANCE.virSetErrorFunc(null, callback);
+		ErrorHandler.processError(Libvirt.INSTANCE);
 	}
 
 	/**
@@ -455,7 +458,7 @@ public class Connect {
 	/**
 	 * Construct a Connect object from a known native virConnectPtr For use when
 	 * native libvirt returns a virConnectPtr, i.e. error handling.
-	 * 
+	 *
 	 * @param VCP
 	 *            the virConnectPtr pointing to an existing native virConnect
 	 *            structure
@@ -467,7 +470,7 @@ public class Connect {
 
 	/**
 	 * Constructs a read-write Connect object from the supplied URI.
-	 * 
+	 *
 	 * @param uri
 	 *            The connection URI
 	 * @throws LibvirtException
@@ -477,12 +480,12 @@ public class Connect {
 		VCP = libvirt.virConnectOpen(uri);
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
+		ErrorHandler.processError(Libvirt.INSTANCE);
 	}
 
 	/**
 	 * Constructs a Connect object from the supplied URI.
-	 * 
+	 *
 	 * @param uri
 	 *            The connection URI
 	 * @param readOnly
@@ -500,13 +503,13 @@ public class Connect {
 		}
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
+		ErrorHandler.processError(Libvirt.INSTANCE);
 	}
 
 	/**
 	 * Constructs a Connect object from the supplied URI, using the supplied
 	 * authentication callback
-	 * 
+	 *
 	 * @param uri
 	 *            The connection URI
 	 * @param auth
@@ -535,13 +538,13 @@ public class Connect {
 		VCP = libvirt.virConnectOpenAuth(uri, vAuth, flags);
 		// Check for an error
 		processError(VCP);
-		ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
+		ErrorHandler.processError(Libvirt.INSTANCE);
 	}
 
 	/**
 	 * Computes the most feature-rich CPU which is compatible with all given
 	 * host CPUs.
-	 * 
+	 *
 	 * @param xmlCPUs
 	 *            array of XML descriptions of host CPUs
 	 * @return XML description of the computed CPU or NULL on error.
@@ -554,7 +557,7 @@ public class Connect {
 	/**
 	 * Closes the connection to the hypervisor/driver. Calling any methods on
 	 * the object after close() will result in an exception.
-	 * 
+	 *
 	 * @throws LibvirtException
 	 * @return number of remaining references (>= 0)
 	 */
@@ -573,7 +576,7 @@ public class Connect {
 
 	/**
 	 * Compares the given CPU description with the host CPU
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectCompareCPU">Libvirt Documentation</a>
 	 * @param xmlDesc
 	 * @return comparison result according to enum CPUCompareResult
@@ -588,7 +591,7 @@ public class Connect {
 	/**
 	 * Create a new device on the VM host machine, for example, virtual HBAs
 	 * created using vport_create.
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the device to create
 	 * @return the Device object
@@ -601,7 +604,7 @@ public class Connect {
 
 	/**
 	 * Fetch a device based on its unique name
-	 * 
+	 *
 	 * @param name
 	 *            name of device to fetch
 	 * @return Device object
@@ -616,7 +619,7 @@ public class Connect {
 	 * Launches a new Linux guest domain. The domain is based on an XML
 	 * description similar to the one returned by virDomainGetXMLDesc(). This
 	 * function may require priviledged access to the hypervisor.
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the Domain description in XML
 	 * @param flags
@@ -633,7 +636,7 @@ public class Connect {
 
 	/**
 	 * Launch a new guest domain, based on an XML description
-	 * 
+	 *
 	 * @param xmlDesc
 	 * @return the Domain object
 	 * @throws LibvirtException
@@ -646,7 +649,7 @@ public class Connect {
 
 	/**
 	 * Defines a domain, but does not start it
-	 * 
+	 *
 	 * @param xmlDesc
 	 * @return the Domain object
 	 * @throws LibvirtException
@@ -659,7 +662,7 @@ public class Connect {
 
 	/**
 	 * Removes an event callback.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventDeregisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param callbackID
@@ -667,6 +670,10 @@ public class Connect {
 	 * @throws LibvirtException
 	 */
 	public void domainEventDeregister(int callbackID) throws LibvirtException {
+
+		if (virDomainEventCallbackList != null)
+			virDomainEventCallbackList.remove(Integer.valueOf(callbackID));
+
 		processError(libvirt.virConnectDomainEventDeregisterAny(VCP, callbackID));
 	}
 
@@ -677,10 +684,10 @@ public class Connect {
 	 * Once registered, the application has to invoke {@link #processEvent} in a loop to process events.
 	 * <p>
 	 * Note: You must call this function before connecting to the hypervisor.
-	 * 
+	 *
 	 * @throws LibvirtException
 	 *             on failure
-	 * 
+	 *
 	 * @see #processEvent
 	 */
 	public static void initEventLoop() throws LibvirtException {
@@ -692,30 +699,34 @@ public class Connect {
 	 * Run one iteration of the event loop.
 	 * <p>
 	 * Applications will generally want to have a thread which invokes this method in an infinite loop:
-	 * 
+	 *
 	 * <pre>
 	 * {@code while (true) connection.processEvent(); }
 	 * </pre>
 	 * <p>
 	 * Failure to do so may result in connections being closed unexpectedly as a result of keepalive timeout.
-	 * 
+	 *
 	 * @throws LibvirtException
 	 *             on failure
-	 * 
+	 *
 	 * @see #initEventLoop()
 	 */
 	public void processEvent() throws LibvirtException {
 		if(libvirt.virEventRunDefaultImpl() == -1)
-			ErrorHandler.processError(Libvirt.SYNC_INSTANCE);
+			ErrorHandler.processError(Libvirt.INSTANCE);
 	}
 
-	public static CallbackThreadInitializer callbackThreadInitializer = new     CallbackThreadInitializer(true);
-
-	
 	int domainEventRegister(Domain domain, int eventID, Libvirt.VirDomainEventCallback cb) throws LibvirtException {
 		DomainPointer ptr = domain == null ? null : domain.VDP;
-		Native.setCallbackThreadInitializer(cb, callbackThreadInitializer);
-		return processError(libvirt.virConnectDomainEventRegisterAny(VCP, ptr, eventID, cb, null, null));
+
+		int cbid = processError(libvirt.virConnectDomainEventRegisterAny(VCP, ptr, eventID, cb, null, null));
+
+		// Keep a reference of the CB to prevent it from being GC'd
+		if (virDomainEventCallbackList == null)
+			virDomainEventCallbackList = new HashMap<Integer, Libvirt.VirDomainEventCallback>();
+		virDomainEventCallbackList.put(Integer.valueOf(cbid), cb);
+
+		return cbid;
 	}
 
 	int domainEventRegister(Domain domain, final DomainEvent.IOErrorCallback cb) throws LibvirtException {
@@ -723,6 +734,7 @@ public class Connect {
 			throw new IllegalArgumentException("IOError callback cannot be null");
 
 		Libvirt.VirConnectDomainEventIOErrorCallback virCB = new Libvirt.VirConnectDomainEventIOErrorCallback() {
+			@Override
 			public void eventCallback(	ConnectionPointer virConnectPtr,
 										DomainPointer virDomainPointer,
 										String srcPath,
@@ -742,7 +754,7 @@ public class Connect {
 	/**
 	 * Adds a callback to receive notifications of IOError domain events
 	 * occurring on a domain.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventRegisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param cb
@@ -752,7 +764,6 @@ public class Connect {
 	 *             on failure
 	 */
 	public int domainEventRegister(final DomainEvent.IOErrorCallback cb) throws LibvirtException {
-		
 		return domainEventRegister(null, cb);
 	}
 
@@ -761,6 +772,7 @@ public class Connect {
 			throw new IllegalArgumentException("RebootCallback cannot be null");
 
 		Libvirt.VirConnectDomainEventGenericCallback virCB = new Libvirt.VirConnectDomainEventGenericCallback() {
+			@Override
 			public void eventCallback(ConnectionPointer virConnectPtr, DomainPointer virDomainPointer, Pointer opaque) {
 				assert VCP.equals(virConnectPtr);
 
@@ -779,6 +791,7 @@ public class Connect {
 		final DomainEvent.LifecycleCallback.Event events[] = DomainEvent.LifecycleCallback.Event.values();
 
 		Libvirt.VirConnectDomainEventCallback virCB = new Libvirt.VirConnectDomainEventCallback() {
+			@Override
 			public int eventCallback(	ConnectionPointer virConnectPtr,
 										DomainPointer virDomainPointer,
 										int event,
@@ -806,7 +819,7 @@ public class Connect {
 	/**
 	 * Adds a callback to receive notifications of domain lifecycle events
 	 * occurring on some domain.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventRegisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param cb
@@ -824,6 +837,7 @@ public class Connect {
 			throw new IllegalArgumentException("PMWakeupCallback cannot be null");
 
 		Libvirt.VirDomainEventCallback virCB = new Libvirt.VirConnectDomainEventPMChangeCallback() {
+			@Override
 			public void eventCallback(	ConnectionPointer virConnectPtr,
 										DomainPointer virDomainPointer,
 										int reason,
@@ -843,6 +857,7 @@ public class Connect {
 			throw new IllegalArgumentException("PMSuspendCallback cannot be null");
 
 		Libvirt.VirDomainEventCallback virCB = new Libvirt.VirConnectDomainEventPMChangeCallback() {
+			@Override
 			public void eventCallback(	ConnectionPointer virConnectPtr,
 										DomainPointer virDomainPointer,
 										int reason,
@@ -860,7 +875,7 @@ public class Connect {
 	/**
 	 * Adds a callback to receive notifications of PMSuspend events
 	 * occurring on some domain.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventRegisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param cb
@@ -876,7 +891,7 @@ public class Connect {
 	/**
 	 * Adds a callback to receive notifications of PMWakeup events
 	 * occurring on some domain.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventRegisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param cb
@@ -892,7 +907,7 @@ public class Connect {
 	/**
 	 * Adds a callback to receive notifications of Reboot domain events
 	 * occurring on an arbitrary domain.
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectDomainEventRegisterAny">Libvirt
 	 *      Documentation</a>
 	 * @param cb
@@ -907,7 +922,7 @@ public class Connect {
 
 	/**
 	 * Finds a domain based on the hypervisor ID number.
-	 * 
+	 *
 	 * @param id
 	 *            the hypervisor id
 	 * @return the Domain object
@@ -920,7 +935,7 @@ public class Connect {
 
 	/**
 	 * Looks up a domain based on its name.
-	 * 
+	 *
 	 * @param name
 	 *            the name of the domain
 	 * @return the Domain object
@@ -935,7 +950,7 @@ public class Connect {
 	 * Looks up a domain based on its UUID in array form. The UUID Array
 	 * contains an unpacked representation of the UUID, each int contains only
 	 * one byte.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID as an unpacked int array
 	 * @return the Domain object
@@ -949,7 +964,7 @@ public class Connect {
 
 	/**
 	 * Fetch a domain based on its globally unique id
-	 * 
+	 *
 	 * @param uuid
 	 *            a java UUID
 	 * @return a new domain object
@@ -961,7 +976,7 @@ public class Connect {
 
 	/**
 	 * Looks up a domain based on its UUID in String form.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID in canonical String representation
 	 * @return the Domain object
@@ -976,7 +991,7 @@ public class Connect {
 	 * Reads a native XML configuration document, and generates generates a
 	 * domain configuration file describing the domain. The format of the native
 	 * data is hypervisor dependant.
-	 * 
+	 *
 	 * @return domain XML as String, or {@code null} on error
 	 * @throws LibvirtException
 	 */
@@ -988,7 +1003,7 @@ public class Connect {
 	 * Reads a domain XML configuration document, and generates generates a
 	 * native configuration file describing the domain. The format of the native
 	 * data is hypervisor dependant.
-	 * 
+	 *
 	 * @return domain XML as String, or {@code null} on error
 	 * @throws LibvirtException
 	 */
@@ -1010,7 +1025,7 @@ public class Connect {
 	 * instance of the storage pool&apos;s source element specifying where to
 	 * look for the pools. srcSpec is not required for some types (e.g., those
 	 * querying local storage resources only)
-	 * 
+	 *
 	 * @param type
 	 *            type of storage pool to discover
 	 * @param srcSpecs
@@ -1029,7 +1044,7 @@ public class Connect {
 
 	/**
 	 * Provides capabilities of the hypervisor / driver.
-	 * 
+	 *
 	 * @return an XML String describing the capabilities.
 	 * @throws LibvirtException
 	 * @see <a href="http://libvirt.org/format.html#Capa1" >The XML format description</a>
@@ -1068,7 +1083,7 @@ public class Connect {
 	 * Returns the system hostname on which the hypervisor is running. (the
 	 * result of the gethostname(2) system call) If we are connected to a remote
 	 * system, then this returns the hostname of the remote system.
-	 * 
+	 *
 	 * @return the hostname
 	 * @throws LibvirtException
 	 */
@@ -1086,7 +1101,7 @@ public class Connect {
 	 * Returns the version of the hypervisor against which the library was
 	 * compiled. The type parameter specified which hypervisor's version is
 	 * returned
-	 * 
+	 *
 	 * @param type
 	 * @return major * 1,000,000 + minor * 1,000 + release
 	 * @throws LibvirtException
@@ -1101,7 +1116,7 @@ public class Connect {
 	/**
 	 * Gets the version of the native libvirt library that the JNI part is
 	 * linked to.
-	 * 
+	 *
 	 * @return major * 1,000,000 + minor * 1,000 + release
 	 * @throws LibvirtException
 	 */
@@ -1116,7 +1131,7 @@ public class Connect {
 	 * Provides the maximum number of virtual CPUs supported for a guest VM of a
 	 * specific type. The 'type' parameter here corresponds to the 'type'
 	 * attribute in the <domain> element of the XML.
-	 * 
+	 *
 	 * @param type
 	 * @return the number of CPUs
 	 * @throws LibvirtException
@@ -1127,7 +1142,7 @@ public class Connect {
 
 	/**
 	 * Gets the name of the Hypervisor software used.
-	 * 
+	 *
 	 * @return the name
 	 * @throws LibvirtException
 	 */
@@ -1140,7 +1155,7 @@ public class Connect {
 	 * same as or similar to the string passed to the
 	 * virConnectOpen/virConnectOpenReadOnly call, but the driver may make the
 	 * URI canonical.
-	 * 
+	 *
 	 * @return the URI
 	 * @throws LibvirtException
 	 */
@@ -1153,7 +1168,7 @@ public class Connect {
 	 * hypervisor call, i.e. with priviledged access to the hypervisor, not with
 	 * a Read-Only connection. If the version can't be extracted by lack of
 	 * capacities returns 0.
-	 * 
+	 *
 	 * @return major * 1,000,000 + minor * 1,000 + release
 	 * @throws LibvirtException
 	 */
@@ -1165,7 +1180,7 @@ public class Connect {
 
 	/**
 	 * Define an interface (or modify existing interface configuration)
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the interface to create
 	 * @return the Interface object
@@ -1178,7 +1193,7 @@ public class Connect {
 
 	/**
 	 * Try to lookup an interface on the given hypervisor based on its MAC.
-	 * 
+	 *
 	 * @throws LibvirtException
 	 */
 	public Interface interfaceLookupByMACString(String mac) throws LibvirtException {
@@ -1188,7 +1203,7 @@ public class Connect {
 
 	/**
 	 * Try to lookup an interface on the given hypervisor based on its name.
-	 * 
+	 *
 	 * @throws LibvirtException
 	 */
 	public Interface interfaceLookupByName(String name) throws LibvirtException {
@@ -1198,7 +1213,7 @@ public class Connect {
 
 	/**
 	 * Determine if the connection is encrypted
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectIsEncrypted">Libvirt Documentation</a>
 	 * @return 1 if encrypted, 0 if not encrypted, -1 on error
 	 * @throws LibvirtException
@@ -1211,7 +1226,7 @@ public class Connect {
 
 	/**
 	 * Determine if the connection is secure
-	 * 
+	 *
 	 * @see <a href="http://www.libvirt.org/html/libvirt-libvirt.html#virConnectIsSecure">Libvirt Documentation</a>
 	 * @return 1 if secure, 0 if not secure, -1 on error
 	 * @throws LibvirtException
@@ -1224,7 +1239,7 @@ public class Connect {
 
 	/**
 	 * Lists the names of the defined but inactive domains
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the defined
 	 *         domains currently inactive
 	 * @throws LibvirtException
@@ -1243,7 +1258,7 @@ public class Connect {
 
 	/**
 	 * Provides the list of names of defined interfaces on this host
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the interfaces on
 	 *         this host
 	 * @throws LibvirtException
@@ -1262,7 +1277,7 @@ public class Connect {
 
 	/**
 	 * Lists the inactive networks
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the inactive
 	 *         networks
 	 * @throws LibvirtException
@@ -1281,7 +1296,7 @@ public class Connect {
 
 	/**
 	 * Provides the list of names of inactive storage pools.
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the defined
 	 *         storage pools
 	 * @throws LibvirtException
@@ -1300,7 +1315,7 @@ public class Connect {
 
 	/**
 	 * List the names of the devices on this node
-	 * 
+	 *
 	 * @param capabilityName
 	 *            optional capability name
 	 */
@@ -1318,7 +1333,7 @@ public class Connect {
 
 	/**
 	 * Lists the active domains.
-	 * 
+	 *
 	 * @return and array of the IDs of the active domains
 	 * @throws LibvirtException
 	 */
@@ -1334,7 +1349,7 @@ public class Connect {
 
 	/**
 	 * Provides the list of names of interfaces on this host
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the interfaces on
 	 *         this host
 	 * @throws LibvirtException
@@ -1353,7 +1368,7 @@ public class Connect {
 
 	/**
 	 * Lists the names of the network filters
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names network filters
 	 * @throws LibvirtException
 	 */
@@ -1371,7 +1386,7 @@ public class Connect {
 
 	/**
 	 * Lists the active networks.
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the active
 	 *         networks
 	 * @throws LibvirtException
@@ -1390,7 +1405,7 @@ public class Connect {
 
 	/**
 	 * Retrieve the List UUIDs of defined secrets
-	 * 
+	 *
 	 * @return an Array of Strings that contains the uuids of the defined
 	 *         secrets
 	 */
@@ -1408,7 +1423,7 @@ public class Connect {
 
 	/**
 	 * Provides the list of names of active storage pools.
-	 * 
+	 *
 	 * @return an Array of Strings that contains the names of the defined
 	 *         storage pools
 	 * @throws LibvirtException
@@ -1429,7 +1444,7 @@ public class Connect {
 	 * Creates and starts a new virtual network. The properties of the network
 	 * are based on an XML description similar to the one returned by
 	 * virNetworkGetXMLDesc()
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the Network Description
 	 * @return the Network object representing the created network
@@ -1445,7 +1460,7 @@ public class Connect {
 	 * Defines a network, but does not create it. The properties of the network
 	 * are based on an XML description similar to the one returned by
 	 * virNetworkGetXMLDesc()
-	 * 
+	 *
 	 * @param xmlDesc
 	 * @return the resulting Network object
 	 * @throws LibvirtException
@@ -1458,7 +1473,7 @@ public class Connect {
 
 	/**
 	 * Defines a networkFilter
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the descirption of the filter
 	 * @return the new filer
@@ -1472,7 +1487,7 @@ public class Connect {
 
 	/**
 	 * Fetch a network filter based on its unique name
-	 * 
+	 *
 	 * @param name
 	 *            name of network filter to fetch
 	 * @return network filter object
@@ -1489,7 +1504,7 @@ public class Connect {
 	 * Looks up a network filter based on its UUID in array form. The UUID Array
 	 * contains an unpacked representation of the UUID, each int contains only
 	 * one byte.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID as an unpacked int array
 	 * @return the network filter object
@@ -1503,7 +1518,7 @@ public class Connect {
 
 	/**
 	 * Fetch a network filter based on its globally unique id
-	 * 
+	 *
 	 * @param uuid
 	 *            a java UUID
 	 * @return a new network filter object
@@ -1515,7 +1530,7 @@ public class Connect {
 
 	/**
 	 * Looks up a network filter based on its UUID in String form.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID in canonical String representation
 	 * @return the Network Filter object
@@ -1528,7 +1543,7 @@ public class Connect {
 
 	/**
 	 * Looks up a network on the based on its name.
-	 * 
+	 *
 	 * @param name
 	 *            name of the network
 	 * @return The Network object found
@@ -1543,7 +1558,7 @@ public class Connect {
 	 * Looks up a network based on its UUID represented as an int array. The
 	 * UUID Array contains an unpacked representation of the UUID, each int
 	 * contains only one byte.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID as an unpacked int array
 	 * @return The Network object found
@@ -1559,7 +1574,7 @@ public class Connect {
 
 	/**
 	 * Fetch a network based on its globally unique id
-	 * 
+	 *
 	 * @param uuid
 	 *            a java UUID
 	 * @return a new network object
@@ -1571,7 +1586,7 @@ public class Connect {
 
 	/**
 	 * Looks up a network based on its UUID represented as a String.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID in canonical String representation
 	 * @return The Network object found
@@ -1585,7 +1600,7 @@ public class Connect {
 	/**
 	 * Returns a NodeInfo object describing the hardware configuration of the
 	 * node.
-	 * 
+	 *
 	 * @return a NodeInfo object
 	 * @throws LibvirtException
 	 */
@@ -1597,7 +1612,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of inactive domains.
-	 * 
+	 *
 	 * @return the number of inactive domains
 	 * @throws LibvirtException
 	 */
@@ -1607,7 +1622,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of defined interfaces.
-	 * 
+	 *
 	 * @return the number of interfaces
 	 * @throws LibvirtException
 	 */
@@ -1617,7 +1632,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of inactive networks.
-	 * 
+	 *
 	 * @return the number of inactive networks
 	 * @throws LibvirtException
 	 */
@@ -1627,7 +1642,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of inactive storage pools
-	 * 
+	 *
 	 * @return the number of pools found
 	 * @throws LibvirtException
 	 */
@@ -1637,7 +1652,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of node devices.
-	 * 
+	 *
 	 * @return the number of inactive domains
 	 * @throws LibvirtException
 	 */
@@ -1647,7 +1662,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of active domains.
-	 * 
+	 *
 	 * @return the number of active domains
 	 * @throws LibvirtException
 	 */
@@ -1657,7 +1672,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of interfaces.
-	 * 
+	 *
 	 * @return the number of interfaces
 	 * @throws LibvirtException
 	 */
@@ -1667,7 +1682,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of network filters
-	 * 
+	 *
 	 * @return the number of network filters
 	 * @throws LibvirtException
 	 */
@@ -1677,7 +1692,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of active networks.
-	 * 
+	 *
 	 * @return the number of active networks
 	 * @throws LibvirtException
 	 */
@@ -1687,7 +1702,7 @@ public class Connect {
 
 	/**
 	 * Fetch number of currently defined secrets.
-	 * 
+	 *
 	 * @return the number of secrets
 	 */
 	public int numOfSecrets() throws LibvirtException {
@@ -1696,7 +1711,7 @@ public class Connect {
 
 	/**
 	 * Provides the number of active storage pools
-	 * 
+	 *
 	 * @return the number of pools found
 	 * @throws LibvirtException
 	 */
@@ -1706,7 +1721,7 @@ public class Connect {
 
 	/**
 	 * call the error handling logic. Should be called after every libvirt call
-	 * 
+	 *
 	 * @throws LibvirtException
 	 */
 	protected void processError() throws LibvirtException {
@@ -1716,7 +1731,7 @@ public class Connect {
 	/**
 	 * Calls {@link #processError()} when the given libvirt return code
 	 * indicates an error.
-	 * 
+	 *
 	 * @param ret
 	 *            libvirt return code, indicating error if negative.
 	 * @return {@code ret}
@@ -1730,7 +1745,7 @@ public class Connect {
 
 	/**
 	 * Calls {@link #processError()} if {@code arg} is null.
-	 * 
+	 *
 	 * @param arg
 	 *            An arbitrary object returned by libvirt.
 	 * @return {@code arg}
@@ -1744,7 +1759,7 @@ public class Connect {
 
 	/**
 	 * Restores a domain saved to disk by Domain.save().
-	 * 
+	 *
 	 * @param from
 	 *            the path of the saved file on the remote host
 	 * @throws LibvirtException
@@ -1759,7 +1774,7 @@ public class Connect {
 	 * (any attributes not specified in xml are discarded). Otherwise, creates a
 	 * new secret with an automatically chosen UUID, and initializes its
 	 * attributes from xml.
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            the secret to create
 	 * @return the Secret object
@@ -1774,7 +1789,7 @@ public class Connect {
 	 * Looks up a secret based on its UUID in array form. The UUID Array
 	 * contains an unpacked representation of the UUID, each int contains only
 	 * one byte.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID as an unpacked int array
 	 * @return the Secret object
@@ -1788,7 +1803,7 @@ public class Connect {
 
 	/**
 	 * Fetch a secret based on its globally unique id
-	 * 
+	 *
 	 * @param uuid
 	 *            a java UUID
 	 * @return a new domain object
@@ -1800,7 +1815,7 @@ public class Connect {
 
 	/**
 	 * Looks up a secret based on its UUID in String form.
-	 * 
+	 *
 	 * @param UUID
 	 *            the UUID in canonical String representation
 	 * @return the Domain object
@@ -1820,7 +1835,7 @@ public class Connect {
 	 * change the amount of memory reserved to Domain0. Domain0 is the domain
 	 * where the application runs. This function may requires priviledged access
 	 * to the hypervisor.
-	 * 
+	 *
 	 * @param memory
 	 *            in kilobytes
 	 * @throws LibvirtException
@@ -1833,7 +1848,7 @@ public class Connect {
 	 * Create a new storage based on its XML description. The pool is not
 	 * persistent, so its definition will disappear when it is destroyed, or if
 	 * the host is restarted
-	 * 
+	 *
 	 * @param xmlDesc
 	 *            XML description for new pool
 	 * @param flags
@@ -1849,7 +1864,7 @@ public class Connect {
 	/**
 	 * Define a new inactive storage pool based on its XML description. The pool
 	 * is persistent, until explicitly undefined.
-	 * 
+	 *
 	 * @param xml
 	 *            XML description for new pool
 	 * @param flags
@@ -1864,7 +1879,7 @@ public class Connect {
 
 	/**
 	 * Fetch a storage pool based on its unique name
-	 * 
+	 *
 	 * @param name
 	 *            name of pool to fetch
 	 * @return StoragePool object
@@ -1877,7 +1892,7 @@ public class Connect {
 
 	/**
 	 * Fetch a storage pool based on its globally unique id
-	 * 
+	 *
 	 * @param UUID
 	 *            globally unique id of pool to fetch
 	 * @return a new network object
@@ -1893,7 +1908,7 @@ public class Connect {
 
 	/**
 	 * Fetch a storage pool based on its globally unique id
-	 * 
+	 *
 	 * @param uuid
 	 *            a java UUID
 	 * @return a new network object
@@ -1905,7 +1920,7 @@ public class Connect {
 
 	/**
 	 * Fetch a storage pool based on its globally unique id
-	 * 
+	 *
 	 * @param UUID
 	 *            globally unique id of pool to fetch
 	 * @return VirStoragePool object
@@ -1918,7 +1933,7 @@ public class Connect {
 
 	/**
 	 * Fetch a a storage volume based on its globally unique key
-	 * 
+	 *
 	 * @param key
 	 *            globally unique key
 	 * @return a storage volume
@@ -1930,7 +1945,7 @@ public class Connect {
 
 	/**
 	 * Fetch a storage volume based on its locally (host) unique path
-	 * 
+	 *
 	 * @param path
 	 *            locally unique path
 	 * @return a storage volume
@@ -1943,7 +1958,7 @@ public class Connect {
 	/**
 	 * Creates a new stream object which can be used to perform streamed I/O
 	 * with other public API function.
-	 * 
+	 *
 	 * @param flags
 	 *            use Stream.VIR_STREAM_NONBLOCK if non-blocking is required
 	 * @return the new object
@@ -1955,7 +1970,7 @@ public class Connect {
 
 	/**
 	 * Verify the connect is active.
-	 * 
+	 *
 	 * @return boolean The true connected, or false not.
 	 * @throws LibvirtException
 	 */
@@ -1968,7 +1983,7 @@ public class Connect {
 	 * <p>
 	 * A connection will be classed as alive if it is either local, or running over a channel (TCP or UNIX socket) which
 	 * is not closed.
-	 * 
+	 *
 	 * @return {@code true} if alive, {@code false} otherwise.
 	 */
 	public boolean isAlive() throws LibvirtException {
@@ -1994,7 +2009,7 @@ public class Connect {
 	 * <em>Note</em>: This API function controls only keepalive messages sent by the client. If the server is configured
 	 * to use keepalive you still need to run the event loop to respond to them, even if you disable keepalives by this
 	 * function.
-	 * 
+	 *
 	 * @param interval
 	 *            number of seconds of inactivity before a keepalive
 	 *            message is sent
